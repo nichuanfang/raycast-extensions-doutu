@@ -16,21 +16,19 @@ export declare interface ISource {
 export class DouBiZJSJ implements ISource {
   name = "Source 1";
   get = async (keyword: string | null, pageIndex: number): Promise<{ isEnd: boolean; images: IDoutuImage[] }> => {
-    const isDefault = keyword && keyword.trim() !== "" ? false : true;
-    let url = `https://www.dbbqb.com/api/search/json?start=${(pageIndex - 1) * 100}&w=${keyword}`;
-    if (isDefault) url = `https://www.dbbqb.com/api/search/json?size=100`;
-    const response = await fetch(url, {
-      headers: {
-        "Web-Agent": "web",
-      },
-    });
-    const json = (await response.json()) as { path: string }[];
-    if (json.length === 0) return { isEnd: true, images: [] };
+    keyword = keyword && keyword.trim() !== "" ? keyword : defaultKeyword;
+    const response = await fetch(
+      `https://www.dogetu.com/search.html?keyword=${encodeURIComponent(keyword)}&page=${pageIndex}`,
+      { headers: { "User-Agent": "Mozilla/5.0" } },
+    );
+    const $ = cheerio.load(await response.text());
+    const nodes = $(".item-pic a > img").toArray();
     return {
-      isEnd: json.length < 100,
-      images: json.map((item) => {
-        return { id: uuidv4(), url: `https://image.dbbqb.com/${item.path}` };
-      }),
+      isEnd: nodes.length < 100,
+      images: duplication(
+        nodes.map((node) => ({ id: uuidv4(), url: node.attribs["src"] })),
+        (o) => o.url,
+      ),
     };
   };
 }
@@ -39,24 +37,21 @@ export class DouTuSource implements ISource {
   name = "Source 2";
   get = async (keyword: string | null, pageIndex: number): Promise<{ isEnd: boolean; images: IDoutuImage[] }> => {
     keyword = keyword && keyword.trim() !== "" ? keyword : defaultKeyword;
-    const response = await fetch(
-      `https://doutu.lccyy.com/doutu/items?keyword=${keyword}&pageNum=${pageIndex}&pageSize=50`,
-    );
-    const json = (await response.json()) as {
-      totalSize: number;
-      totalPages: number;
-      pageSize: number;
-      items: { url: string }[];
-    };
-    if (json.items.length === 0) return { isEnd: true, images: [] };
+    const url = pageIndex === 1
+      ? `https://pdan.com.cn/?s=${encodeURIComponent(keyword)}`
+      : `https://pdan.com.cn/page/${pageIndex}?s=${encodeURIComponent(keyword)}`;
+    const response = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0" } });
+    const $ = cheerio.load(await response.text());
+    const nodes = $(".pin .pin-coat a.imageLink > img").toArray();
     return {
-      isEnd: json.totalPages === pageIndex,
+      isEnd: nodes.length < 100,
       images: duplication(
-        json.items.filter((o) => !o.url.includes("/keyWordPic/")),
+        nodes.map((node) => {
+          const url = node.attribs["src"];
+          return { id: uuidv4(), url: url.startsWith("http") ? url : `https://pdan.com.cn${url}` };
+        }),
         (o) => o.url,
-      ).map((item) => {
-        return { id: uuidv4(), url: item.url.replace("http:", "https:") };
-      }),
+      ),
     };
   };
 }
@@ -66,15 +61,16 @@ export class DouTuLaSource implements ISource {
   get = async (keyword: string | null, pageIndex: number): Promise<{ isEnd: boolean; images: IDoutuImage[] }> => {
     keyword = keyword && keyword.trim() !== "" ? keyword : defaultKeyword;
     const response = await fetch(
-      `https://www.pkdoutu.com/search?type=photo&more=1&keyword=${keyword}&page=${pageIndex}`,
+      `https://www.doutupk.com/search?type=photo&more=1&keyword=${keyword}&page=${pageIndex}`,
     );
     const $ = cheerio.load(await response.text());
-    const nodes = $("div.search-result.list-group-item").find("img.img-responsive").toArray();
+    const nodes = $("img.image_dtb[data-original]").toArray();
     return {
-      isEnd: nodes.length < 72,
+      isEnd: nodes.length < 100,
       images: duplication(
         nodes.map((node) => {
-          return { id: uuidv4(), url: node.attribs["data-backup"].replace("http:", "https:") };
+          const url = node.attribs["data-original"] || node.attribs["data-backup"];
+          return { id: uuidv4(), url: url.replace("http:", "https:") };
         }),
         (o) => o.url,
       ),
