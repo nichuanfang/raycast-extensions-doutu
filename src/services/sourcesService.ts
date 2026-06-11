@@ -1,6 +1,7 @@
 import { ISource, DouTuLaSource, DouTuSource, DouBiZJSJ } from "./sources";
+import { ChineseBQBSource } from "./chineseBQBSource";
 
-const sources: ISource[] = [new DouBiZJSJ(), new DouTuSource(), new DouTuLaSource()];
+const sources: ISource[] = [new DouBiZJSJ(), new DouTuSource(), new DouTuLaSource(), new ChineseBQBSource()];
 let source: ISource | undefined;
 
 export default {
